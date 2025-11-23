@@ -13,6 +13,7 @@
 #include <linuxmt/trace.h>
 #include <linuxmt/debug.h>
 
+#include <arch/segment.h>
 #include <arch/irq.h>
 
 struct task_struct *task;           /* dynamically allocated task array */
@@ -119,6 +120,11 @@ void schedule(void)
 
         previous = prev;
         current = next;
+#ifdef SETUP_MEM_BANKS
+        asm volatile("" ::: "memory");
+        bank_set_current(current->t_membank);
+        asm volatile("" ::: "memory");
+#endif
         debug_sched("sched: %P\n");
         tswitch();  /* Won't return for a new task */
 

@@ -121,9 +121,12 @@ static int kmem_ioctl(struct inode *inode, struct file *file, int cmd, char *arg
     case MEM_GETUPTIME:
         retword = (unsigned)&jiffies;
         break;
+#ifndef SETUP_MEM_BANKS
+    // FIXME
     case MEM_GETSEGALL:
         retword = (unsigned)&_seg_all;
         break;
+#endif
         /* fall thru */
     default:
         return -EINVAL;

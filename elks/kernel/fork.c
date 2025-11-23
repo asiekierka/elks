@@ -60,6 +60,9 @@ struct task_struct *find_empty_process(void)
     t->average = 0;
     t->kstack_max = 0;              /* for CHECK_KSTACK */
     t->kstack_prevmax = 0;
+#ifdef SETUP_MEM_BANKS
+    t->t_membank = 0;
+#endif
     t->kstack_magic = KSTACK_MAGIC;
     t->next_run = t->prev_run = NULL;
     return t;
@@ -75,6 +78,10 @@ pid_t do_fork(int virtual)
     int j, k;
     struct file *filp;
     struct segment *s;
+#ifdef SETUP_MEM_BANKS
+    bank_t cur_bank = bank_get_current();
+    bank_t new_bank = virtual ? cur_bank : seg_find_free_bank();
+#endif
 
     if ((t = find_empty_process()) == NULL)
         return -EAGAIN;
@@ -82,10 +89,33 @@ pid_t do_fork(int virtual)
 
     /* Fix up what's different */
 
+#ifdef SETUP_MEM_BANKS
+    t->t_membank = new_bank;
+#endif
+
     /* t->mm[] is a duplicate of current->mm[] by find_empty_process */
+
     for (j = 0; j < MAX_SEGS; j++) {
         s = t->mm[j];
         if (s) {
+#ifdef SETUP_MEM_BANKS
+            if (cur_bank != new_bank) {
+                t->mm[j] = seg_dup_bank(s, new_bank);
+                if (t->mm[j] == 0) {
+                    for (k = 0; k < j; k++)
+                        seg_put(t->mm[k]);
+                    t->state = TASK_UNUSED;
+                    task_slots_unused++;
+                    next_task_slot = t;
+                    return -ENOMEM;
+                }
+
+                if ((t->mm[j]->flags & SEG_FLAG_TYPE) == SEG_FLAG_DSEG)
+                    t->t_regs.ds = t->t_regs.es = t->t_regs.ss = t->mm[j]->base;
+                else if ((t->mm[j]->flags & SEG_FLAG_TYPE) == SEG_FLAG_CSEG)
+                    t->t_xregs.cs = t->mm[j]->base;
+            } else
+#endif
             if ((s->flags & SEG_FLAG_TYPE) == SEG_FLAG_CSEG)
                 seg_get(s);         /* share text */
             else {

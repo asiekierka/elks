@@ -9,8 +9,6 @@
 #include <linuxmt/memory.h>
 #include <linuxmt/init.h>
 
-#include <arch/segment.h>
-
 static char *args[] = {
 (char *)0x01,   /* 0 argc     */
 (char *)0x08,   /* 2 &argv[0] */
@@ -68,12 +66,12 @@ void INITPROC kfork_proc(void (*addr)())
 
 void put_ustack(register struct task_struct *t,int off,int val)
 {
-    pokew(t->t_regs.sp+off, t->t_regs.ss, (word_t) val);
+    bank_pokew(t->t_membank, t->t_regs.sp+off, t->t_regs.ss, (word_t) val);
 }
 
 unsigned get_ustack(register struct task_struct *t,int off)
 {
-    return peekw(t->t_regs.sp+off, t->t_regs.ss);
+    return bank_peekw(t->t_membank, t->t_regs.sp+off, t->t_regs.ss);
 }
 
 /*
