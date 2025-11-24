@@ -34,14 +34,14 @@
 #include <paths.h>
 #include <libgen.h>
 
-#define LINEARADDRESS(off, seg)     ((off_t) (((off_t)seg << 4) + off))
+#define LINEARADDRESS(off, seg, bank)     ((off_t) (((off_t)seg << 4) + off + ((off_t)bank << 20)))
 #define MK_FP(seg,off) ((void __far *)((((unsigned long)(seg))<<16) | ((unsigned)(off))))
 
 static int maxtasks;
 
-int memread(int fd, word_t off, word_t seg, void *buf, int size)
+int memread(int fd, word_t off, word_t seg, bank_t bank, void *buf, int size)
 {
-    if (lseek(fd, LINEARADDRESS(off, seg), SEEK_SET) == -1)
+    if (lseek(fd, LINEARADDRESS(off, seg, bank), SEEK_SET) == -1)
         return 0;
 
     if (read(fd, buf, size) != size)
@@ -50,26 +50,26 @@ int memread(int fd, word_t off, word_t seg, void *buf, int size)
     return 1;
 }
 
-word_t getword(int fd, word_t off, word_t seg)
+word_t getword(int fd, word_t off, word_t seg, bank_t bank)
 {
     word_t word;
 
-    if (!memread(fd, off, seg, &word, sizeof(word)))
+    if (!memread(fd, off, seg, bank, &word, sizeof(word)))
         return 0;
     return word;
 }
 
-void process_name(int fd, unsigned int off, unsigned int seg)
+void process_name(int fd, unsigned int off, unsigned int seg, bank_t bank)
 {
     word_t argc, argv;
     char buf[80];
 
-    argc = getword(fd, off, seg);
+    argc = getword(fd, off, seg, bank);
 
     while (argc-- > 0) {
         off += 2;
-        argv = getword(fd, off, seg);
-        if (!memread(fd, argv, seg, buf, sizeof(buf)))
+        argv = getword(fd, off, seg, bank);
+        if (!memread(fd, argv, seg, bank, buf, sizeof(buf)))
             return;
         printf("%s ",buf);
     }
@@ -125,6 +125,7 @@ int main(int argc, char **argv)
     int c, fd;
     unsigned int j, ds, off;
     word_t cseg, dseg;
+    bank_t bank = 0;
     struct passwd * pwent;
     int f_listall = 0;
     char *progname;
@@ -163,14 +164,16 @@ int main(int argc, char **argv)
         jiff_t uptime;
         unsigned int upoff;
 
-        if (ioctl(fd, MEM_GETUPTIME, &upoff) < 0) {
+        if (ioctl(fd, MEM_GETUPTIME, &upoff) < 0 ||
+                !memread(fd, upoff, ds, bank, &uptime, sizeof(uptime))) {
             printf("no mem_getuptime\n");
             return 1;
         }
-        jiff_t __far *puptime = MK_FP(ds, upoff);
+
+        /* jiff_t __far *puptime = MK_FP(ds, upoff);
         clr_irq();
         uptime = *puptime;
-        set_irq();
+        set_irq(); */
 
         unsigned long n = uptime / HZ;
         int days = n / (24 * 3600L);
@@ -197,7 +200,7 @@ int main(int argc, char **argv)
     if (f_listall) printf("CSEG DSEG ");
     printf(" HEAP  FREE   SIZE COMMAND\n");
     for (j = 0; j < maxtasks; j++) {
-        if (!memread(fd, off + j*sizeof(struct task_struct), ds, &task_table, sizeof(task_table))) {
+        if (!memread(fd, off + j*sizeof(struct task_struct), ds, 0, &task_table, sizeof(task_table))) {
             printf("no memread\n");
             return 1;
         }
@@ -217,6 +220,8 @@ int main(int argc, char **argv)
             printf("Recompile ps, mismatched task structure\n");
             return 1;
         }
+
+        bank = task_table.t_membank;
 
         pwent = getpwuid(task_table.uid);
 
@@ -239,12 +244,12 @@ int main(int argc, char **argv)
         /* CSEG*/
         cseg = (word_t)task_table.mm[SEG_CODE];
         if (f_listall) printf(" %4x ",
-            cseg? getword(fd, (word_t)cseg+offsetof(struct segment, base), ds): 0);
+            cseg? getword(fd, (word_t)cseg+offsetof(struct segment, base), ds, bank): 0);
 
         /* DSEG*/
         dseg = (word_t)task_table.mm[SEG_DATA];
         if (f_listall) printf("%4x",
-            dseg? getword(fd, (word_t)dseg+offsetof(struct segment, base), ds): 0);
+            dseg? getword(fd, (word_t)dseg+offsetof(struct segment, base), ds, bank): 0);
 
         if (dseg) {
             /* heap*/
@@ -257,12 +262,11 @@ int main(int argc, char **argv)
             //printf("%5u ", (word_t)(task_table.t_begstack - task_table.t_regs.sp));
 
             /* size*/
-            segext_t size = getword(fd, (word_t)cseg+offsetof(struct segment, size), ds)
-                            + getword(fd, (word_t)dseg+offsetof(struct segment, size), ds);
+            segext_t size = getword(fd, (word_t)cseg+offsetof(struct segment, size), ds, bank)
+                            + getword(fd, (word_t)dseg+offsetof(struct segment, size), ds, bank);
             printf("%6ld ", (long)size << 4);
 
-            // FIXME
-            // process_name(fd, task_table.t_begstack, task_table.t_regs.ss);
+            process_name(fd, task_table.t_begstack, task_table.t_regs.ss, bank);
         }
         printf("\n");
     }
