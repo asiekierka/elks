@@ -279,7 +279,7 @@ static void INITPROC kernel_banner(seg_t init, seg_t extra)
     kernel_banner_arch();
     printk("syscaps %x, %uK base ram, %d tasks, %d files, %d inodes\n",
         sys_caps, SETUP_MEM_KBYTES, max_tasks, nr_file, nr_inode);
-    printk("ELKS %s (%u text, %u ftext, %u data, %u bss, %u heap)\n",
+    printk("elkswan %s (%u text, %u ftext, %u data, %u bss, %u heap)\n",
            system_utsname.release,
            (unsigned)_endtext, (unsigned)_endftext, (unsigned)_enddata,
            (unsigned)_endbss - (unsigned)_enddata, heapsize);
