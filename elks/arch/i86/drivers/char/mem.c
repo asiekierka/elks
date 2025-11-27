@@ -126,11 +126,7 @@ static int kmem_ioctl(struct inode *inode, struct file *file, int cmd, char *arg
         retword = (unsigned)&jiffies;
         break;
     case MEM_GETSEGALL:
-#ifdef SETUP_MEM_BANKS
         retword = (unsigned)__seg_all;
-#else
-        retword = (unsigned)&_seg_all;
-#endif
         break;
     default:
         return -EINVAL;
