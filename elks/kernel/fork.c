@@ -114,8 +114,8 @@ pid_t do_fork(int virtual)
 
                 if ((t->mm[j]->flags & SEG_FLAG_TYPE) == SEG_FLAG_DSEG)
                     t->t_regs.ds = t->t_regs.es = t->t_regs.ss = t->mm[j]->base;
-                else if ((t->mm[j]->flags & SEG_FLAG_TYPE) == SEG_FLAG_CSEG)
-                    t->t_xregs.cs = t->mm[j]->base;
+                /* else if ((t->mm[j]->flags & SEG_FLAG_TYPE) == SEG_FLAG_CSEG)
+                    t->t_xregs.cs = t->mm[j]->base; */
             } else
 #endif
             if ((s->flags & SEG_FLAG_TYPE) == SEG_FLAG_CSEG)
